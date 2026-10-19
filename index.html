@@ -82,7 +82,7 @@ canvas{height:min(80vh,calc((100vw - 40px)*16/9));max-width:100%;aspect-ratio:9/
     <div><label for="tfont">Font</label><select id="tfont"><option>Montserrat</option><option>Anton</option><option>Bangers</option><option>Luckiest Guy</option><option>Impact</option><option>Arial Black</option></select></div>
   </div>
   <div class="row">
-    <div><label for="tsize">Size</label><input type="range" id="tsize" min="40" max="180" value="104"></div>
+    <div><label for="tsize">Size</label><input type="range" id="tsize" min="40" max="180" value="88"></div>
     <div><label for="tgap">Line spacing</label><input type="range" id="tgap" min="80" max="170" value="118"></div>
   </div>
 
@@ -107,7 +107,7 @@ canvas{height:min(80vh,calc((100vw - 40px)*16/9));max-width:100%;aspect-ratio:9/
   <div class="sec">Layout</div>
   <div class="row">
     <div><label for="layout">Style</label><select id="layout"><option value="bar">Title bar + full video</option><option value="full">Full-screen video, title on top</option></select></div>
-    <div><label for="band">Title area height</label><input type="range" id="band" min="150" max="520" value="330"></div>
+    <div><label for="band">Title area height</label><input type="range" id="band" min="250" max="700" value="470"></div>
   </div>
   <div class="row">
     <div><label for="fit">Video fit</label><select id="fit"><option value="cover">Fill (crop)</option><option value="contain">Fit (black bars)</option><option value="blur">Fit + blurred background</option></select></div>
@@ -117,6 +117,13 @@ canvas{height:min(80vh,calc((100vw - 40px)*16/9));max-width:100%;aspect-ratio:9/
     <div><label for="clip">Max seconds per clip (0 = full)</label><input type="number" id="clip" value="0" min="0"></div>
     <div><label for="guides">&nbsp;</label><label class="chk" style="margin:0 0 8px"><input type="checkbox" id="guides" checked> Show YouTube safe zones</label></div>
   </div>
+
+  <div class="row">
+    <div><label for="sideM">Side margin</label><input type="range" id="sideM" min="60" max="260" value="130"></div>
+    <div><label for="topS">Top safe area</label><input type="range" id="topS" min="100" max="320" value="200"></div>
+    <div><label for="botS">Bottom safe area</label><input type="range" id="botS" min="250" max="650" value="480"></div>
+  </div>
+  <p class="hint">Phones crop the sides and cover the top and bottom of Shorts. Keep the red areas in the preview clear.</p>
 
   <div class="sec">Export</div>
   <div class="row">
@@ -139,7 +146,7 @@ canvas{height:min(80vh,calc((100vw - 40px)*16/9));max-width:100%;aspect-ratio:9/
 <script>
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
-const W = 1080, H = 1920, SAFE_BOTTOM = 300;
+const W = 1080, H = 1920;
 const WORD_COLORS = ['#ffffff', '#ffd400', '#ff1f1f', '#ffffff'];
 const NUM_COLORS = ['#ffd400', '#ff7a00', '#1e6bff', '#ffffff', '#ffffff'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -249,15 +256,15 @@ function drawVideo(){
 }
 function drawTitle(){
   if(!tw.length) return;
-  const L = lay(), fam = $('tfont').value, lhp = +$('tgap').value / 100, gk = .28; let size = +$('tsize').value;
+  const L = lay(), fam = $('tfont').value, lhp = +$('tgap').value / 100, gk = .28, side = +$('sideM').value, ts = +$('topS').value; let size = +$('tsize').value;
   const build = sz => {
     ctx.font = fnt(fam, sz); const g = sz * gk, R = [[]]; let lw = 0;
-    tw.forEach(o => { const m = ctx.measureText(o.t).width; if(lw + m > 980 && R[R.length - 1].length){ R.push([]); lw = 0; } R[R.length - 1].push({t: o.t, c: o.c, m}); lw += m + g; });
+    tw.forEach(o => { const m = ctx.measureText(o.t).width; if(lw + m > W - 2 * side && R[R.length - 1].length){ R.push([]); lw = 0; } R[R.length - 1].push({t: o.t, c: o.c, m}); lw += m + g; });
     return R;
   };
   let lines = build(size);
-  while(lines.length * size * lhp > L.band - 30 && size > 30){ size -= 4; lines = build(size); }
-  const lh = size * lhp, g = size * gk, top = (L.band - lines.length * lh) / 2 + lh / 2;
+  while(lines.length * size * lhp > Math.max(80, L.band - ts) - 24 && size > 30){ size -= 4; lines = build(size); }
+  const lh = size * lhp, g = size * gk, top = ts + (Math.max(80, L.band - ts) - lines.length * lh) / 2 + lh / 2;
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#000'; ctx.lineWidth = size * .14;
   lines.forEach((ln, li) => {
     let x = (W - (ln.reduce((a, o) => a + o.m, 0) + g * (ln.length - 1))) / 2;
@@ -265,26 +272,30 @@ function drawTitle(){
   });
 }
 function drawList(){
-  const L = lay(), n = Math.max(vids.length, 5), a0 = L.band + 40, avail = H - SAFE_BOTTOM - a0, step = Math.min(200, avail / n), y0 = a0 + (avail - step * n) / 2 + step / 2;
+  const L = lay(), n = Math.max(vids.length, 5), side = +$('sideM').value, a0 = L.band + 30, avail = H - +$('botS').value - a0;
+  const step = Math.min(200, avail / n), y0 = a0 + (avail - step * n) / 2 + step / 2;
   const lf = $('lfont').value, ol = +$('olw').value / 100, mc = $('mcol').value, maxw = +$('maxw').value;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#000';
   for(let i = 0; i < n; i++){
     const y = y0 + step * i, v = vids.find(x => x.rank === i + 1), num = (i + 1) + '.', ns = Math.min(+$('nsize').value, step * .9);
-    ctx.font = fnt(lf, ns); ctx.lineWidth = ns * ol; if(ol) ctx.strokeText(num, 48, y);
-    ctx.fillStyle = numColor(i); ctx.fillText(num, 48, y);
-    const nx = 48 + ctx.measureText(num).width + 14;
+    ctx.font = fnt(lf, ns); ctx.lineWidth = ns * ol; if(ol) ctx.strokeText(num, side, y);
+    ctx.fillStyle = numColor(i); ctx.fillText(num, side, y);
+    const nx = side + ctx.measureText(num).width + 14, lim = Math.min(maxw, W - side - 70 - nx);
     if(v && (showAll && !running || revealed.has(v.id))){
       let ms = Math.min(+$('msize').value * v.scale / 100, step * .85); ctx.font = fnt(lf, ms);
-      const w = ctx.measureText(v.name).width; if(w > maxw){ ms *= maxw / w; ctx.font = fnt(lf, ms); }
+      const w = ctx.measureText(v.name).width; if(w > lim){ ms *= lim / w; ctx.font = fnt(lf, ms); }
       ctx.lineWidth = ms * ol; if(ol) ctx.strokeText(v.name, nx, y); ctx.fillStyle = mc; ctx.fillText(v.name, nx, y);
     }
   }
 }
 function drawGuides(){
   if(!$('guides').checked || recording) return;
-  ctx.fillStyle = 'rgba(255,40,80,.22)'; ctx.fillRect(0, H - SAFE_BOTTOM, W, SAFE_BOTTOM); ctx.fillRect(W - 150, H - 880, 150, 580); ctx.fillRect(0, 0, W, 110);
+  const sd = +$('sideM').value, ts = +$('topS').value, bs = +$('botS').value;
+  ctx.fillStyle = 'rgba(255,40,80,.25)';
+  ctx.fillRect(0, 0, W, ts); ctx.fillRect(0, H - bs, W, bs); ctx.fillRect(0, ts, sd, H - ts - bs); ctx.fillRect(W - sd, ts, sd, H - ts - bs);
+  ctx.fillRect(W - 210, H - bs - 500, 210, 500);
   ctx.fillStyle = '#fff'; ctx.font = '600 26px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('YouTube buttons and text cover these areas (not in the export)', W / 2, H - SAFE_BOTTOM / 2);
+  ctx.fillText('Phone cuts or covers the red areas (not in the export)', W / 2, H - bs / 2);
 }
 function render(){ ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); drawVideo(); drawTitle(); drawList(); drawGuides(); }
 function frame(){ render(); requestAnimationFrame(frame); }
@@ -405,13 +416,13 @@ $('fast').onclick = async () => {
 };
 
 /* ---------- saved settings + init ---------- */
-const IDS = ['title','tsize','tgap','tfont','nsize','msize','maxw','mcol','olw','lfont','layout','band','fit','order','clip','guides','res','br'];
+const IDS = ['title','tsize','tgap','tfont','nsize','msize','maxw','mcol','olw','lfont','layout','band','sideM','topS','botS','fit','order','clip','guides','res','br'];
 function save(){
-  try{ const o = {tw, numCols}; IDS.forEach(id => { const e = $(id); o[id] = e.type === 'checkbox' ? e.checked : e.value; }); localStorage.setItem('rankmaker2', JSON.stringify(o)); }catch(e){}
+  try{ const o = {tw, numCols}; IDS.forEach(id => { const e = $(id); o[id] = e.type === 'checkbox' ? e.checked : e.value; }); localStorage.setItem('rankmaker3', JSON.stringify(o)); }catch(e){}
 }
 function load(){
   try{
-    const o = JSON.parse(localStorage.getItem('rankmaker2') || 'null'); if(!o) return;
+    const o = JSON.parse(localStorage.getItem('rankmaker3') || 'null'); if(!o) return;
     IDS.forEach(id => { if(o[id] === undefined) return; const e = $(id); if(e.type === 'checkbox') e.checked = o[id]; else e.value = o[id]; });
     tw = o.tw || []; numCols = o.numCols || [];
   }catch(e){}
